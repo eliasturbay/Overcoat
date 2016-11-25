@@ -1,6 +1,6 @@
 // OVCHTTPSessionManager.m
 //
-// Copyright (c) 2014 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,40 +24,52 @@
 #import "OVCResponse.h"
 #import "OVCModelResponseSerializer.h"
 #import "OVCURLMatcher.h"
-#import "OVCHTTPManager_Internal.h"
 #import "NSError+OVCResponse.h"
-
-@interface OVCHTTPSessionManager ()
-
-@end
 
 @implementation OVCHTTPSessionManager
 
+#if DEBUG
++ (void)initialize {
+    // TODO: Add links to releated document.
+    if ([self respondsToSelector:@selector(errorModelClass)]) {
+        NSLog(@"Warning: `+[OVCHTTPSessionManager errorModelClass]` is deprecated. "
+              @"Override `+[OVCHTTPSessionManager errorModelClassesByResourcePath]` instead. (Class: %@)", self);
+    }
+    if ([self respondsToSelector:@selector(responseClass)]) {
+        NSLog(@"Warning: `+[OVCHTTPSessionManager responseClass]` is deprecated. "
+              @"Override `+[OVCHTTPSessionManager responseClassesByResourcePath]` instead. (Class: %@)", self);
+    }
+}
+#endif
+
 - (instancetype)initWithBaseURL:(NSURL *)url sessionConfiguration:(NSURLSessionConfiguration *)configuration {
     if (self = [super initWithBaseURL:url sessionConfiguration:configuration]) {
-        self.responseSerializer = OVCHTTPManagerCreateModelResponseSerializer(self);
+        self.responseSerializer =
+        [OVCModelResponseSerializer
+         serializerWithURLMatcher:[OVCURLMatcher matcherWithBasePath:self.baseURL.path
+                                                  modelClassesByPath:[[self class] modelClassesByResourcePath]]
+         responseClassURLMatcher:[OVCURLMatcher matcherWithBasePath:self.baseURL.path
+                                                 modelClassesByPath:[[self class] responseClassesByResourcePath]]
+         errorModelClassURLMatcher:[OVCURLMatcher matcherWithBasePath:self.baseURL.path
+                                                   modelClassesByPath:[[self class] errorModelClassesByResourcePath]]];
     }
     return self;
 }
 
 #pragma mark - HTTP Manager Protocol
 
-+ (Class)responseClass {
-    return [OVCResponse class];
-}
-
-+ (Class)errorModelClass {
-    return Nil;
-}
-
 + (NSDictionary *)modelClassesByResourcePath {
     [NSException
-     raise:NSInvalidArgumentException
+     raise:NSInternalInconsistencyException
      format:@"+[%@ %@] should be overridden by subclass", NSStringFromClass(self), NSStringFromSelector(_cmd)];
     return nil;  // Not reached
 }
 
 + (NSDictionary *)responseClassesByResourcePath {
+    return @{@"**": [OVCResponse class]};
+}
+
++ (NSDictionary *)errorModelClassesByResourcePath {
     return nil;
 }
 
@@ -66,6 +78,8 @@
 - (NSURLSessionDataTask *)_dataTaskWithHTTPMethod:(NSString *)method
                                         URLString:(NSString *)URLString
                                        parameters:(id)parameters
+                                   uploadProgress:(void (^)(NSProgress *uploadProgress))uploadProgress
+                                 downloadProgress:(void (^)(NSProgress *downloadProgress))downloadProgress
                                        completion:(void (^)(OVCResponse *, NSError *))completion {
     // The implementation is copied from AFNetworking ... (Since we want to pass `responseObject`)
     // (Superclass implemenration doesn't return response object.)
@@ -89,6 +103,8 @@
     }
 
     return [self dataTaskWithRequest:request
+                      uploadProgress:uploadProgress
+                    downloadProgress:downloadProgress
                    completionHandler:^(NSURLResponse * __unused response, id responseObject, NSError *error) {
                        if (completion) {
                            if (!error) {
@@ -104,9 +120,22 @@
 - (NSURLSessionDataTask *)GET:(NSString *)URLString
                    parameters:(id)parameters
                    completion:(void (^)(OVCResponse *, NSError *))completion {
+    NSURLSessionDataTask *task = [self GET:URLString
+                                parameters:parameters
+                                  progress:nil
+                                completion:completion];
+    return task;
+}
+
+- (NSURLSessionDataTask *)GET:(NSString *)URLString
+                   parameters:(id)parameters
+                     progress:(void (^)(NSProgress *downloadProgress))downloadProgress
+                   completion:(void (^)(OVCResponse *, NSError *))completion {
     NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"GET"
                                                      URLString:URLString
                                                     parameters:parameters
+                                                uploadProgress:nil
+                                              downloadProgress:downloadProgress
                                                     completion:completion];
     [task resume];
     return task;
@@ -118,6 +147,8 @@
     NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"HEAD"
                                                      URLString:URLString
                                                     parameters:parameters
+                                                uploadProgress:nil
+                                              downloadProgress:nil
                                                     completion:completion];
     [task resume];
     return task;
@@ -129,6 +160,8 @@
     NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"POST"
                                                      URLString:URLString
                                                     parameters:parameters
+                                                uploadProgress:nil
+                                              downloadProgress:nil
                                                     completion:completion];
     [task resume];
     return task;
@@ -137,6 +170,33 @@
 - (NSURLSessionDataTask *)POST:(NSString *)URLString
                     parameters:(id)parameters
      constructingBodyWithBlock:(void (^)(id<AFMultipartFormData>))block
+                    completion:(void (^)(OVCResponse *, NSError *))completion {
+        NSURLSessionDataTask *task = [self POST:URLString
+                                     parameters:parameters
+                      constructingBodyWithBlock:block
+                                       progress:nil
+                                     completion:completion];
+    return task;
+}
+
+- (NSURLSessionDataTask *)POST:(NSString *)URLString
+                    parameters:(id)parameters
+                      progress:(void (^)(NSProgress *uploadProgress))uploadProgress
+                    completion:(void (^)(OVCResponse *, NSError *))completion {
+    NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"POST"
+                                                     URLString:URLString
+                                                    parameters:parameters
+                                                uploadProgress:uploadProgress
+                                              downloadProgress:nil
+                                                    completion:completion];
+    [task resume];
+    return task;
+}
+
+- (NSURLSessionDataTask *)POST:(NSString *)URLString
+                    parameters:(id)parameters
+     constructingBodyWithBlock:(void (^)(id<AFMultipartFormData> formData))block
+                      progress:(void (^)(NSProgress *uploadProgress))uploadProgress
                     completion:(void (^)(OVCResponse *, NSError *))completion {
     // The implementation is copied from AFNetworking ... (Since we want to pass `responseObject`)
     // (Superclass implemenration doesn't return response object.)
@@ -159,21 +219,24 @@
         }
         return nil;
     }
-    
+
     // `dataTaskWithRequest:completionHandler:` creates a new NSURLSessionDataTask
-    NSURLSessionDataTask *dataTask = [self dataTaskWithRequest:request
-                                             completionHandler:^(NSURLResponse * __unused response, id responseObject, NSError *error) {
-                                                 if (completion) {
-                                                     if (!error) {
-                                                         completion(responseObject, nil);
-                                                     } else {
-                                                         completion(responseObject, error);
-                                                     }
-                                                 }
-                                             }];
+    NSURLSessionDataTask *dataTask = [self uploadTaskWithStreamedRequest:request
+                                                                progress:uploadProgress
+                                                       completionHandler:^(NSURLResponse * __unused response,
+                                                                           id responseObject,
+                                                                           NSError *error) {
+                                                           if (completion) {
+                                                               if (!error) {
+                                                                   completion(responseObject, nil);
+                                                               } else {
+                                                                   completion(responseObject, error);
+                                                               }
+                                                           }
+                                                       }];
 
     [dataTask resume];
-    return dataTask; 
+    return dataTask;
 }
 
 - (NSURLSessionDataTask *)PUT:(NSString *)URLString
@@ -182,6 +245,8 @@
     NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"PUT"
                                                      URLString:URLString
                                                     parameters:parameters
+                                                uploadProgress:nil
+                                              downloadProgress:nil
                                                     completion:completion];
     [task resume];
     return task;
@@ -193,6 +258,8 @@
     NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"PATCH"
                                                      URLString:URLString
                                                     parameters:parameters
+                                                uploadProgress:nil
+                                              downloadProgress:nil
                                                     completion:completion];
     [task resume];
     return task;
@@ -204,6 +271,8 @@
     NSURLSessionDataTask *task = [self _dataTaskWithHTTPMethod:@"DELETE"
                                                      URLString:URLString
                                                     parameters:parameters
+                                                uploadProgress:nil
+                                              downloadProgress:nil
                                                     completion:completion];
     [task resume];
     return task;

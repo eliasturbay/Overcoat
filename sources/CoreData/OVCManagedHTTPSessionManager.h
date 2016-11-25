@@ -1,6 +1,6 @@
 // OVCManagedHTTPRequestOperationManager.h
 //
-// Copyright (c) 2014 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,7 @@
 // THE SOFTWARE.
 
 #import <Overcoat/OVCHTTPSessionManager.h>
-#import <Overcoat/OVCManagedHTTPManager.h>
+#import <CoreData/CoreData.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -29,7 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
  `OVCManagedHTTPSessionManager` provides methods to communicate with a web application over HTTP,
  mapping responses into native model objects which can optionally be persisted in a Core Data store.
  */
-@interface OVCManagedHTTPSessionManager : OVCHTTPSessionManager <OVCManagedHTTPManager>
+@interface OVCManagedHTTPSessionManager : OVCHTTPSessionManager
 
 /**
  Initializes the receiver with the specified base URL and managed object context.
@@ -48,6 +48,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithBaseURL:(OVC_NULLABLE NSURL *)url
            managedObjectContext:(OVC_NULLABLE NSManagedObjectContext *)context
            sessionConfiguration:(OVC_NULLABLE NSURLSessionConfiguration *)configuration NS_DESIGNATED_INITIALIZER;
+
+/**
+ The managed object context that will be used to persist model objects parsed from a response.
+ */
+@property (strong, nonatomic, readonly, OVC_NULLABLE) NSManagedObjectContext *managedObjectContext;
 
 @end
 

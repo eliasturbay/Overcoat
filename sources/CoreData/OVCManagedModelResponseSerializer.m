@@ -1,6 +1,6 @@
 // OVCManagedModelResponseSerializer.m
 //
-// Copyright (c) 2013 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,14 +20,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#import "OVCManagedModelResponseSerializer_Internal.h"
+#import "OVCManagedModelResponseSerializer.h"
+#import "OVCURLMatcher.h"
 #import "OVCResponse.h"
 #import <CoreData/CoreData.h>
-#if OVERCOAT_USING_MANTLE_2
-    #import <MTLManagedObjectAdapter/MTLManagedObjectAdapter.h>
-#else
-    #import <Mantle/MTLManagedObjectAdapter.h>
-#endif
+#import <MTLManagedObjectAdapter/MTLManagedObjectAdapter.h>
 #import "OVCManagedObjectSerializingContainer.h"
 
 @interface OVCManagedModelResponseSerializer ()
@@ -37,16 +34,56 @@
 @implementation OVCManagedModelResponseSerializer
 
 + (instancetype)serializerWithURLMatcher:(OVCURLMatcher *)URLMatcher
-                 responseClassURLMatcher:(OVCURLMatcher *)URLResponseClassMatcher
-                    managedObjectContext:(NSManagedObjectContext *)managedObjectContext
+                 responseClassURLMatcher:(OVCURLMatcher *)responseClassURLMatcher
+               errorModelClassURLMatcher:(OVCURLMatcher *)errorModelClassURLMatcher
+                    managedObjectContext:(NSManagedObjectContext *)managedObjectContext {
+    return [[self alloc] initWithURLMatcher:URLMatcher
+                    responseClassURLMatcher:responseClassURLMatcher
+                  errorModelClassURLMatcher:errorModelClassURLMatcher
+                       managedObjectContext:managedObjectContext];
+}
+
++ (instancetype)serializerWithURLMatcher:(OVCURLMatcher *)URLMatcher
                            responseClass:(Class)responseClass
-                         errorModelClass:(Class)errorModelClass {
-    OVCManagedModelResponseSerializer *serializer = [self serializerWithURLMatcher:URLMatcher
-                                                           responseClassURLMatcher:URLResponseClassMatcher
-                                                                     responseClass:responseClass
-                                                                   errorModelClass:errorModelClass];
-    serializer.managedObjectContext = managedObjectContext;
-    return serializer;
+                         errorModelClass:(Class)errorModelClass
+                    managedObjectContext:(NSManagedObjectContext *)managedObjectContext {
+    OVCURLMatcher *responseClassURLMatcher = nil;
+    if (responseClass) {
+        responseClassURLMatcher = [OVCURLMatcher matcherWithBasePath:nil modelClassesByPath:@{
+            @"**": responseClass,
+        }];
+    }
+    OVCURLMatcher *errorModelClassURLMatcher = nil;
+    if (errorModelClass) {
+        errorModelClassURLMatcher = [OVCURLMatcher matcherWithBasePath:nil modelClassesByPath:@{
+            @"**": errorModelClass,
+        }];
+    }
+    return [self serializerWithURLMatcher:URLMatcher
+                  responseClassURLMatcher:responseClassURLMatcher
+                errorModelClassURLMatcher:errorModelClassURLMatcher
+                     managedObjectContext:managedObjectContext];
+}
+
+- (instancetype)initWithURLMatcher:(OVCURLMatcher *)URLMatcher
+           responseClassURLMatcher:(OVCURLMatcher *)responseClassURLMatcher
+         errorModelClassURLMatcher:(OVCURLMatcher *)errorModelClassURLMatcher {
+    return [self initWithURLMatcher:URLMatcher
+            responseClassURLMatcher:responseClassURLMatcher
+          errorModelClassURLMatcher:errorModelClassURLMatcher
+               managedObjectContext:nil];
+}
+
+- (instancetype)initWithURLMatcher:(OVCURLMatcher *)URLMatcher
+           responseClassURLMatcher:(OVCURLMatcher *)responseClassURLMatcher
+         errorModelClassURLMatcher:(OVCURLMatcher *)errorModelClassURLMatcher
+              managedObjectContext:(NSManagedObjectContext *)context {
+    if (self = [super initWithURLMatcher:URLMatcher
+                 responseClassURLMatcher:responseClassURLMatcher
+               errorModelClassURLMatcher:errorModelClassURLMatcher]) {
+        _managedObjectContext = context;
+    }
+    return self;
 }
 
 #pragma mark - AFURLRequestSerialization
@@ -79,6 +116,10 @@
     NSParameterAssert(result);
     
     NSManagedObjectContext *context = self.managedObjectContext;
+    
+    if (((NSMergePolicy *)context.mergePolicy).mergeType == nil) {
+        [context setMergePolicy:[[NSMergePolicy alloc] initWithMergeType:NSMergeByPropertyObjectTrumpMergePolicyType]];
+    }
     
     [context performBlockAndWait:^{
         NSArray *models = [result isKindOfClass:[NSArray class]] ? result : @[result];

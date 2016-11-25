@@ -1,6 +1,6 @@
 // OVCResponse.h
 // 
-// Copyright (c) 2014 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,8 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (strong, nonatomic, readonly, OVC_NULLABLE) Class resultClass;
 
+@property (nonatomic, strong, readonly) id rawResult;
+
 /**
  Returns the result key path in the JSON.
  
@@ -71,10 +73,16 @@ NS_ASSUME_NONNULL_BEGIN
                                           resultClass:(OVC_NULLABLE Class)resultClass
                                                 error:(NSError *OVC__NULLABLE __autoreleasing *OVC__NULLABLE)error;
 
+@end
+
+#pragma mark - Deprecated
+
+@interface OVCResponse (Deprecated)
+
 + (OVC_NULLABLE instancetype)responseWithHTTPResponse:(OVC_NULLABLE NSHTTPURLResponse *)HTTPResponse
                                            JSONObject:(OVC_NULLABLE id)JSONObject
                                           resultClass:(OVC_NULLABLE Class)resultClass
-__attribute__((deprecated("Replaced by +responseWithHTTPResponse:JSONObject:resultClass:error:")))
+OVC_DEPRECATED("Replaced by +responseWithHTTPResponse:JSONObject:resultClass:error:")
 NS_SWIFT_UNAVAILABLE("Deprecated. use `init(HTTPResponse:JSONObject:resultClass:) throws`");
 
 @end

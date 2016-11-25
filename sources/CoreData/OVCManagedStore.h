@@ -1,6 +1,6 @@
 // OVCManagedStore.h
 //
-// Copyright (c) 2014 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#import <Foundation/Foundation.h>
 #import <Overcoat/OVCUtilities.h>
 
 @class NSPersistentStoreCoordinator, NSManagedObjectModel;

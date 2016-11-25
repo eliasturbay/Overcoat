@@ -1,78 +1,59 @@
 XC_WORKSPACE=Overcoat.xcworkspace
+XCODE_PROJ=Overcoat.xcodeproj
 
-test:
-	# Call `make` directly to force `clean`
-	make test-osx-mantle1
-	make test-osx-mantle2
-	make test-ios-mantle1
-	make test-ios-mantle2
+OSX_TEST_SCHEME_FLAGS:=-workspace $(XC_WORKSPACE) -scheme OvercoatTests-OSX -sdk macosx
+IOS_TEST_SCHEME_FLAGS:=-workspace $(XC_WORKSPACE) -scheme OvercoatTests-iOS -sdk iphonesimulator
+TVOS_TEST_SCHEME_FLAGS:=-workspace $(XC_WORKSPACE) -scheme OvercoatTests-tvOS -sdk appletvsimulator
 
-# Command check
+CARTHAGE_PLATFORMS=Mac,iOS
+CARTHAGE_FLAGS:=--platform $(CARTHAGE_PLATFORMS)
 
-check-pod-install:
-	which pod 1>/dev/null 2>&1 || (echo "\n\n>>> Please install cocoapods first. (https://cocoapods.org)\n" && exit 1)
+POD_TRUNK_PUSH_FLAGS=--verbose
 
-check-xctool-install:
-	which xctool 1>/dev/null 2>&1 || (echo "\n\n>>> Please install xctool first. (https://github.com/facebook/xctool)\n" && exit 1)
+test: install-pod clean run-tests
 
-# Cocoapods, including Mantle setup
+test-osx: install-pod clean run-tests-osx
+
+test-ios: install-pod clean run-tests-ios
+
+test-tvos: install-pod clean run-tests-tvos
 
 clean:
-	xctool -workspace $(XC_WORKSPACE) -scheme Overcoat-OSX clean 1>/dev/null
-	xctool -workspace $(XC_WORKSPACE) -scheme Overcoat-iOS clean 1>/dev/null
-	rm -rf Pods
+	xcodebuild -project $(XCODE_PROJ) -alltargets clean
 
-install-osx-mantle1-pod install-ios-mantle1-pod install-osx-mantle2-pod install-ios-mantle2-pod: check-pod-install clean
+install-pod:
+	COCOAPODS_DISABLE_DETERMINISTIC_UUIDS=YES pod install --repo-update
 
-install-osx-mantle1-pod:
-	OS_TYPE=OSX MANTLE=1.5 pod install 1>/dev/null
+# Run Tests
 
-install-ios-mantle1-pod:
-	OS_TYPE=iOS MANTLE=1.5 pod install 1>/dev/null
+run-tests-osx:
+	xcodebuild $(OSX_TEST_SCHEME_FLAGS) test | xcpretty
 
-install-osx-mantle2-pod:
-	OS_TYPE=OSX MANTLE=2.0 pod install 1>/dev/null
+run-tests-ios:
+	xcodebuild $(IOS_TEST_SCHEME_FLAGS) test | xcpretty
 
-install-ios-mantle2-pod:
-	OS_TYPE=iOS MANTLE=2.0 pod install 1>/dev/null
+run-tests-tvos:
+	xcodebuild $(TVOS_TEST_SCHEME_FLAGS) test | xcpretty
 
+# Intetfaces
 
-# Build tests
+run-tests: run-tests-osx run-tests-ios run-tests-tvos
 
-build-osx-tests build-ios-tests: check-xctool-install
+# Distribution
 
-build-osx-tests:
-	xctool -workspace $(XC_WORKSPACE) -scheme Overcoat-OSX build-tests 1>/dev/null
+test-carthage:
+	rm -rf Pods/
+	carthage update $(CARTHAGE_FLAGS)
+	carthage build --no-skip-current $(CARTHAGE_FLAGS) --verbose
 
-build-ios-tests:
-	xctool -workspace $(XC_WORKSPACE) -scheme Overcoat-iOS -sdk iphonesimulator build-tests 1>/dev/null
+test-pod:
+	pod spec lint ./*.podspec --verbose --allow-warnings --no-clean --fail-fast
 
-# Run tests
+distribute-pod: test
+	pod trunk push Overcoat.podspec $(POD_TRUNK_PUSH_FLAGS)
+	pod trunk push Overcoat+CoreData.podspec --allow-warnings $(POD_TRUNK_PUSH_FLAGS)
+	pod trunk push Overcoat+PromiseKit.podspec $(POD_TRUNK_PUSH_FLAGS)
+	pod trunk push Overcoat+ReactiveCocoa.podspec $(POD_TRUNK_PUSH_FLAGS)
+	pod trunk push Overcoat+Social.podspec $(POD_TRUNK_PUSH_FLAGS)
 
-run-ios-tests run-osx-tests: check-xctool-install
-
-run-ios-tests:
-	xctool -workspace $(XC_WORKSPACE) -scheme Overcoat-iOS -sdk iphonesimulator run-tests -test-sdk iphonesimulator
-
-run-osx-tests:
-	xctool -workspace $(XC_WORKSPACE) -scheme Overcoat-OSX run-tests
-
-# Tests
-
-execute-ios-tests: build-ios-tests run-ios-tests
-
-execute-osx-tests: build-osx-tests run-osx-tests
-
-# Interfaces
-
-test-ios-mantle1: install-ios-mantle1-pod execute-ios-tests
-
-test-osx-mantle1: install-osx-mantle1-pod execute-osx-tests
-
-test-ios-mantle2: install-ios-mantle2-pod execute-ios-tests
-
-test-osx-mantle2: install-osx-mantle2-pod execute-osx-tests
-
-test-ios: test-ios-mantle2
-
-test-osx: test-osx-mantle2
+distribute-carthage: test

@@ -1,6 +1,6 @@
 // OVCResponse.m
 //
-// Copyright (c) 2014 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,12 +21,11 @@
 // THE SOFTWARE.
 
 #import "OVCResponse.h"
-#import "OVCUtilities.h"
 #import "NSDictionary+Overcoat.h"
 
 @interface OVCResponse OVCGenerics(ResultType) ()
 
-@property (strong, nonatomic, readwrite) NSHTTPURLResponse *HTTPResponse;
+@property (strong, nonatomic, readwrite, OVC_NULLABLE) NSHTTPURLResponse *HTTPResponse;
 @property (strong, nonatomic, readwrite) OVCGenericType(ResultType, id) result;
 @property (strong, nonatomic, readwrite) Class resultClass;
 
@@ -41,8 +40,7 @@
 + (instancetype)responseWithHTTPResponse:(NSHTTPURLResponse *)HTTPResponse
                               JSONObject:(id)JSONObject
                              resultClass:(Class)resultClass
-                                   error:(NSError *__autoreleasing *)error
-{
+                                   error:(NSError *__autoreleasing *)error {
     OVCResponse *response = nil;
     id result = JSONObject;
 
@@ -63,12 +61,12 @@
     }
 
     response.HTTPResponse = HTTPResponse;
+    response->_rawResult = JSONObject;
 
     if (result != nil) {
         if (resultClass != Nil) {
             NSValueTransformer *valueTransformer = nil;
 
-#if OVERCOAT_USING_MANTLE_2
             if ([result isKindOfClass:[NSDictionary class]]) {
                 valueTransformer = [MTLJSONAdapter dictionaryTransformerWithModelClass:resultClass];
             } else if ([result isKindOfClass:[NSArray class]]) {
@@ -86,15 +84,6 @@
             } else {
                 result = [valueTransformer transformedValue:result];
             }
-#else
-            if ([result isKindOfClass:[NSDictionary class]]) {
-                valueTransformer = [NSValueTransformer mtl_JSONDictionaryTransformerWithModelClass:resultClass];
-            } else if ([result isKindOfClass:[NSArray class]]) {
-                valueTransformer = [NSValueTransformer mtl_JSONArrayTransformerWithModelClass:resultClass];
-            }
-
-            result = [valueTransformer transformedValue:result];
-#endif
         }
 
         response.result = result;
@@ -104,18 +93,18 @@
     return response;
 }
 
-#pragma mark - MTLJSONSerializing
+#pragma mark - Mantle
+
++ (MTLPropertyStorage)storageBehaviorForPropertyWithKey:(NSString *)propertyKey {
+    if ([propertyKey isEqualToString:@"rawResult"]) {
+        return MTLPropertyStorageNone;
+    } else {
+        return [super storageBehaviorForPropertyWithKey:propertyKey];
+    }
+}
 
 + (NSDictionary *)JSONKeyPathsByPropertyKey {
-#if OVERCOAT_USING_MANTLE_2
     return @{};
-#else
-    return @{
-        @"HTTPResponse": [NSNull null],
-        @"result": [NSNull null],
-        @"resultClass": [NSNull null],
-    };
-#endif
 }
 
 #pragma mark - deprecated

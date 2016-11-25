@@ -7,10 +7,12 @@
 //
 
 #import <XCTest/XCTest.h>
+#import <CoreData/CoreData.h>
 #import <OHHTTPStubs/OHHTTPStubs.h>
 #import <OHHTTPStubs/OHPathHelpers.h>
 #import <Overcoat/Overcoat.h>
-#import "OVCTestModel.h"
+#import <OvercoatCoreData/OvercoatCoreData.h>
+#import "OVCCoreDataTestModel.h"
 
 #pragma mark - TestClient
 
@@ -20,14 +22,14 @@
 
 @implementation OVCHTTPSessionCoreDataTestSessionManager
 
-+ (Class)errorModelClass {
-    return [OVCErrorModel class];
++ (NSDictionary OVCGenerics(NSString *,id) *)errorModelClassesByResourcePath {
+    return @{@"**": [OVCErrorModel class]};
 }
 
 + (NSDictionary *)modelClassesByResourcePath {
     return @{
-        @"model/#": [OVCTestModel class],
-        @"models": [OVCTestModel class]
+        @"model/#": [OVCManagedTestModel class],
+        @"models": [OVCManagedTestModel class]
     };
 }
 
@@ -52,7 +54,7 @@
 
     NSManagedObjectContext *context = [[NSManagedObjectContext alloc]
                                        initWithConcurrencyType:NSMainQueueConcurrencyType];
-    [context setPersistentStoreCoordinator:store.persistentStoreCoordinator];
+    context.persistentStoreCoordinator = store.persistentStoreCoordinator;
 
     // Observe changes in Core Data
 
@@ -86,29 +88,32 @@
     // Get models
 
     XCTestExpectation *completed = [self expectationWithDescription:@"completed"];
-    OVCResponse * __block response = nil;
+    OVCResponse OVCGenerics(NSArray<OVCManagedTestModel *> *) * __block response = nil;
     NSError * __block error = nil;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [self.client GET:@"models" parameters:nil completion:^(OVCResponse *r, NSError *e) {
         response = r;
         error = e;
         [completed fulfill];
     }];
+#pragma clang diagnostic pop
 
     [self waitForExpectationsWithTimeout:1 handler:nil];
 
     XCTAssertNil(error, @"should not return an error");
     XCTAssertTrue([response.result isKindOfClass:[NSArray class]], @"should return an array of test models");
-    XCTAssertTrue([[response.result firstObject] isKindOfClass:[OVCTestModel class]],
+    XCTAssertTrue([[response.result firstObject] isKindOfClass:[OVCManagedTestModel class]],
                   @"should return an array of test models");
 
-    NSDictionary *userInfo = [notification userInfo];
-    NSSet *objects = userInfo[NSInsertedObjectsKey];
+    NSDictionary *userInfo = notification.userInfo;
+    NSSet OVCGenerics(NSManagedObject *) *objects = userInfo[NSInsertedObjectsKey];
 
-    XCTAssertEqual(2U, [objects count], @"should insert two objects");
+    XCTAssertEqual(2U, objects.count, @"should insert two objects");
 
     for (NSManagedObject *object in objects) {
-        XCTAssertEqualObjects(@"TestModel", [[object entity] name], @"should insert TestModel objects");
+        XCTAssertEqualObjects(@"TestModel", object.entity.name, @"should insert TestModel objects");
     }
     [[NSNotificationCenter defaultCenter] removeObserver:observer];
 }

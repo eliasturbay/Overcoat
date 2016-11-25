@@ -21,14 +21,17 @@
 
 @implementation TestSessionManager
 
-+ (Class)errorModelClass {
-    return [OVCErrorModel class];
++ (NSDictionary *)errorModelClassesByResourcePath {
+    return @{@"**": [OVCErrorModel class]};
 }
 
 + (NSDictionary *)modelClassesByResourcePath {
     return @{
         @"model/#": [OVCTestModel class],
-        @"models": [OVCTestModel class]
+        @"models": [OVCURLMatcherNode matcherNodeWithModelClasses:@{
+            @201: [OVCTestModel2 class],
+            @"*": [OVCTestModel class],
+        }],
     };
 }
 
@@ -58,45 +61,44 @@
     [super tearDown];
 }
 
-- (void)testResponseClass {
-    XCTAssertEqualObjects([OVCHTTPSessionManager responseClass], [OVCResponse class], @"should return OVCResponse");
-}
-
-- (void)testErrorResultClass {
-    XCTAssertNil([OVCHTTPSessionManager errorModelClass], @"should be Nil");
-}
-
 - (void)testModelClassesByResourcePathMustBeOverridenBySubclass {
     XCTAssertThrows([OVCHTTPSessionManager modelClassesByResourcePath], @"should throw an exception");
 }
 
 - (void)testGET {
     NSURLRequest * __block request = nil;
-    
+    id __block expectedRawResult = nil;
     [OHHTTPStubs stubRequestsPassingTest:^BOOL(NSURLRequest *r) {
         request = r;
         return YES;
     } withStubResponse:^OHHTTPStubsResponse *(NSURLRequest *request) {
-        NSString * path = OHPathForFile(@"model.json", self.class);
-        return [OHHTTPStubsResponse responseWithFileAtPath:path
-                                                statusCode:200
-                                                   headers:@{@"Content-Type": @"application/json"}];
+        NSString *path = OHPathForFile(@"model.json", self.class);
+        NSData *responseData = [NSData dataWithContentsOfFile:path];
+        expectedRawResult = [NSJSONSerialization JSONObjectWithData:responseData options:0 error:nil];
+        return [OHHTTPStubsResponse responseWithData:responseData
+                                          statusCode:200
+                                             headers:@{@"Content-Type": @"application/json"}];
     }];
     
     XCTestExpectation *completed = [self expectationWithDescription:@"completed"];
     OVCResponse * __block response = nil;
     NSError * __block error = nil;
-    
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [self.client GET:@"model/42" parameters:nil completion:^(OVCResponse *r, NSError *e) {
         response = r;
         error = e;
         [completed fulfill];
     }];
-    
+#pragma clang diagnostic pop
+
     [self waitForExpectationsWithTimeout:1 handler:nil];
     
     XCTAssertNil(error, @"should not return an error");
+    XCTAssertTrue([response isKindOfClass:[OVCResponse class]]);
     XCTAssertTrue([response.result isKindOfClass:[OVCTestModel class]], @"should return a test model");
+    XCTAssertEqualObjects(response.rawResult, expectedRawResult);
     
     XCTAssertEqualObjects(@"GET", request.HTTPMethod, @"should send a GET request");
 }
@@ -114,13 +116,16 @@
     XCTestExpectation *completed = [self expectationWithDescription:@"completed"];
     OVCResponse * __block response = nil;
     NSError * __block error = nil;
-    
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [self.client GET:@"model/42" parameters:nil completion:^(OVCResponse *r, NSError *e) {
         response = r;
         error = e;
         [completed fulfill];
     }];
-    
+#pragma clang diagnostic pop
+
     [self waitForExpectationsWithTimeout:1 handler:nil];
     
     XCTAssertNotNil(error, @"should return an error");
@@ -157,9 +162,9 @@
     XCTAssertEqualObjects(@"HEAD", request.HTTPMethod, @"should send a HEAD request");
 }
 
-- (void)testPOST {
+- (void)testPOST200 {
     NSURLRequest * __block request = nil;
-    
+
     [OHHTTPStubs stubRequestsPassingTest:^BOOL(NSURLRequest *r) {
         request = r;
         return YES;
@@ -169,21 +174,58 @@
                                                 statusCode:200
                                                    headers:@{@"Content-Type": @"application/json"}];
     }];
-    
+
     XCTestExpectation *completed = [self expectationWithDescription:@"completed"];
     OVCResponse * __block response = nil;
     NSError * __block error = nil;
-    
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [self.client POST:@"models" parameters:@{@"name": @"Iron Man"} completion:^(OVCResponse *r, NSError *e) {
         response = r;
         error = e;
         [completed fulfill];
     }];
+#pragma clang diagnostic pop
+
+    [self waitForExpectationsWithTimeout:1 handler:nil];
+
+    XCTAssertNil(error, @"should not return an error");
+    XCTAssertTrue([response.result isKindOfClass:[OVCTestModel class]], @"should return a test model");
+
+    XCTAssertEqualObjects(@"POST", request.HTTPMethod, @"should send a POST request");
+}
+
+- (void)testPOST201 {
+    NSURLRequest * __block request = nil;
     
+    [OHHTTPStubs stubRequestsPassingTest:^BOOL(NSURLRequest *r) {
+        request = r;
+        return YES;
+    } withStubResponse:^OHHTTPStubsResponse *(NSURLRequest *request) {
+        NSString * path = OHPathForFile(@"model.json", self.class);
+        return [OHHTTPStubsResponse responseWithFileAtPath:path
+                                                statusCode:201
+                                                   headers:@{@"Content-Type": @"application/json"}];
+    }];
+    
+    XCTestExpectation *completed = [self expectationWithDescription:@"completed"];
+    OVCResponse * __block response = nil;
+    NSError * __block error = nil;
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    [self.client POST:@"models" parameters:@{@"name": @"Iron Man"} completion:^(OVCResponse *r, NSError *e) {
+        response = r;
+        error = e;
+        [completed fulfill];
+    }];
+#pragma clang diagnostic pop
+
     [self waitForExpectationsWithTimeout:1 handler:nil];
     
     XCTAssertNil(error, @"should not return an error");
-    XCTAssertTrue([response.result isKindOfClass:[OVCTestModel class]], @"should return a test model");
+    XCTAssertTrue([response.result isKindOfClass:[OVCTestModel2 class]], @"should return a test model");
     
     XCTAssertEqualObjects(@"POST", request.HTTPMethod, @"should send a POST request");
 }
@@ -201,13 +243,16 @@
     XCTestExpectation *completed = [self expectationWithDescription:@"completed"];
     OVCResponse * __block response = nil;
     NSError * __block error = nil;
-    
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     [self.client POST:@"models" parameters:@{@"name": @"Iron Man"} completion:^(OVCResponse *r, NSError *e) {
         response = r;
         error = e;
         [completed fulfill];
     }];
-    
+#pragma clang diagnostic pop
+
     [self waitForExpectationsWithTimeout:1 handler:nil];
     
     XCTAssertNotNil(error, @"should return an error");

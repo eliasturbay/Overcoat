@@ -1,7 +1,6 @@
 // OVCHTTPSessionManager+ReactiveCocoa.m
 //
-// Created by Joan Romano on 27/05/14.
-// Copyright (c) 2014 Guillermo Gonzalez
+// Copyright (c) 2013-2016 Overcoat Team
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +21,9 @@
 // THE SOFTWARE.
 
 #import "OVCHTTPSessionManager+ReactiveCocoa.h"
-#import <ReactiveCocoa/ReactiveCocoa.h>
+#import <ReactiveObjC/RACSignal.h>
+#import <ReactiveObjC/RACSubscriber.h>
+#import <ReactiveObjC/RACDisposable.h>
 
 @implementation OVCHTTPSessionManager (ReactiveCocoa)
 
@@ -30,6 +31,7 @@
     return [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
         __block NSURLSessionDataTask *task = [self GET:URLString
                                             parameters:parameters
+                                              progress:nil
                                             completion:^(id response, NSError *error) {
                                                 if (!error) {
                                                     [subscriber sendNext:response];
@@ -45,8 +47,7 @@
     }] setNameWithFormat:@"%@ -rac_GET: %@, parameters: %@", self.class, URLString, parameters];
 }
 
-- (RACSignal *)rac_HEAD:(NSString *)URLString parameters:(NSDictionary *)parameters
-{
+- (RACSignal *)rac_HEAD:(NSString *)URLString parameters:(NSDictionary *)parameters {
     return [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
         __block NSURLSessionDataTask *task = [self HEAD:URLString
                                              parameters:parameters
@@ -69,6 +70,7 @@
     return [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
         __block NSURLSessionDataTask *task = [self POST:URLString
                                              parameters:parameters
+                                               progress:nil
                                              completion:^(id response, NSError *error) {
                                                  if (!error) {
                                                      [subscriber sendNext:response];
@@ -91,6 +93,7 @@ constructingBodyWithBlock:(void (^)(id <AFMultipartFormData> formData))block {
         __block NSURLSessionDataTask *task = [self POST:URLString
                                              parameters:parameters
                               constructingBodyWithBlock:block
+                                               progress:nil
                                              completion:^(id response, NSError *error) {
                                                  if (!error) {
                                                      [subscriber sendNext:response];
@@ -162,6 +165,92 @@ constructingBodyWithBlock:(void (^)(id <AFMultipartFormData> formData))block {
             [task cancel];
         }];
     }] setNameWithFormat:@"%@ -rac_DELETE: %@, parameters: %@", self.class, URLString, parameters];
+}
+
+#pragma mark -
+
+- (RACSignal *)rac_GET:(NSString *)URLString
+            parameters:(NSDictionary *)parameters
+              progress:(id<RACSubscriber>)progress {
+    return [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
+        __block NSURLSessionDataTask *task = [self GET:URLString
+                                            parameters:parameters
+                                              progress:^(NSProgress *downloadProgress) {
+                                                  [progress sendNext:downloadProgress];
+                                              }
+                                            completion:^(id response, NSError *error) {
+                                                if (!error) {
+                                                    [subscriber sendNext:response];
+                                                    [subscriber sendCompleted];
+                                                    [progress sendCompleted];
+                                                } else {
+                                                    [subscriber sendError:error];
+                                                    [progress sendError:error];
+                                                }
+                                            }];
+
+        return [RACDisposable disposableWithBlock:^{
+            [task cancel];
+        }];
+    }] setNameWithFormat:@"%@ -rac_GET: %@, parameters: %@, progress: %@",
+            self.class, URLString, parameters, progress];
+}
+
+
+- (RACSignal *)rac_POST:(NSString *)URLString
+             parameters:(NSDictionary *)parameters
+               progress:(id<RACSubscriber>)progress {
+    return [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
+        __block NSURLSessionDataTask *task = [self POST:URLString
+                                             parameters:parameters
+                                               progress:^(NSProgress *uploadProgress) {
+                                                   [progress sendNext:uploadProgress];
+                                               }
+                                             completion:^(id response, NSError *error) {
+                                                 if (!error) {
+                                                     [subscriber sendNext:response];
+                                                     [subscriber sendCompleted];
+                                                     [progress sendCompleted];
+                                                 } else {
+                                                     [subscriber sendError:error];
+                                                     [progress sendError:error];
+                                                 }
+                                             }];
+
+        return [RACDisposable disposableWithBlock:^{
+            [task cancel];
+        }];
+    }] setNameWithFormat:@"%@ -rac_POST: %@, parameters: %@, progress: %@",
+            self.class, URLString, parameters, progress];
+}
+
+- (RACSignal *)rac_POST:(NSString *)URLString
+             parameters:(NSDictionary *)parameters
+constructingBodyWithBlock:(void (^)(id <AFMultipartFormData> formData))block
+               progress:(id<RACSubscriber>)progress {
+    return [[RACSignal createSignal:^RACDisposable *(id<RACSubscriber> subscriber) {
+        __block NSURLSessionDataTask *task = [self POST:URLString
+                                             parameters:parameters
+                              constructingBodyWithBlock:block
+                                               progress:^(NSProgress *uploadProgress) {
+                                                   [progress sendNext:uploadProgress];
+                                               }
+                                             completion:^(id response, NSError *error) {
+                                                 if (!error) {
+                                                     [subscriber sendNext:response];
+                                                     [subscriber sendCompleted];
+                                                     [progress sendCompleted];
+                                                 } else {
+                                                     [subscriber sendError:error];
+                                                     [progress sendError:error];
+                                                 }
+                                             }];
+
+        return [RACDisposable disposableWithBlock:^{
+            [task cancel];
+        }];
+    }] setNameWithFormat:@"%@ -rac_POST: %@, parameters: %@, constructingBodyWithBlock %@, progress %@",
+            self.class, URLString, parameters, block, progress];
 }
 
 @end
