@@ -12,13 +12,16 @@ build/*
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
-*.xcworkspace
 xcuserdata
 profile
 *.moved-aside
+*.xccheckout
+*.moved-aside
+*.xcuserstate
 # AppCode
 .idea
-#Cocoapods
+# Cocoapods
 Pods
-
-Podfile.lock
+# Carthage
+Carthage
+DerivedData
