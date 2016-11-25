@@ -117,6 +117,10 @@
     
     NSManagedObjectContext *context = self.managedObjectContext;
     
+    if (((NSMergePolicy *)context.mergePolicy).mergeType == nil) {
+        [context setMergePolicy:[[NSMergePolicy alloc] initWithMergeType:NSMergeByPropertyObjectTrumpMergePolicyType]];
+    }
+    
     [context performBlockAndWait:^{
         NSArray *models = [result isKindOfClass:[NSArray class]] ? result : @[result];
 
